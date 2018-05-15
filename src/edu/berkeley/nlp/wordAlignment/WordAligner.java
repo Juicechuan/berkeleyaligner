@@ -1,8 +1,8 @@
 package edu.berkeley.nlp.wordAlignment;
 
-import static edu.berkeley.nlp.wa.basic.LogInfo.end_track;
-import static edu.berkeley.nlp.wa.basic.LogInfo.logs;
-import static edu.berkeley.nlp.wa.basic.LogInfo.track;
+import static edu.berkeley.nlp.fig.basic.LogInfo.end_track;
+import static edu.berkeley.nlp.fig.basic.LogInfo.logs;
+import static edu.berkeley.nlp.fig.basic.LogInfo.track;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -47,7 +47,7 @@ public abstract class WordAligner implements Serializable {
 	}
 
 	public Alignment thresholdAlignment(Alignment al, double threshold) {
-		return al.thresholdPosteriors(al.getPosteriors(), threshold);
+		return al.thresholdPosteriors(al.getForeignByEnglishPosteriors(), threshold);
 	}
 
 	public String getModelPrefix() {

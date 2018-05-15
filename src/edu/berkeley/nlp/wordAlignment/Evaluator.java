@@ -1,9 +1,9 @@
 package edu.berkeley.nlp.wordAlignment;
 
-import static edu.berkeley.nlp.wa.basic.LogInfo.end_track;
-import static edu.berkeley.nlp.wa.basic.LogInfo.logs;
-import static edu.berkeley.nlp.wa.basic.LogInfo.logss;
-import static edu.berkeley.nlp.wa.basic.LogInfo.track;
+import static edu.berkeley.nlp.fig.basic.LogInfo.end_track;
+import static edu.berkeley.nlp.fig.basic.LogInfo.logs;
+import static edu.berkeley.nlp.fig.basic.LogInfo.logss;
+import static edu.berkeley.nlp.fig.basic.LogInfo.track;
 
 import java.io.File;
 import java.io.PrintWriter;
@@ -11,19 +11,19 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import edu.berkeley.nlp.wa.basic.IOUtils;
-import edu.berkeley.nlp.wa.basic.LogInfo;
-import edu.berkeley.nlp.wa.basic.Option;
-import edu.berkeley.nlp.wa.basic.OutputOrderedMap;
-import edu.berkeley.nlp.wa.basic.StrUtils;
-import edu.berkeley.nlp.wa.basic.String2DoubleMap;
-import edu.berkeley.nlp.wa.concurrent.WorkQueue;
-import edu.berkeley.nlp.wa.concurrent.WorkQueueReorderer;
-import edu.berkeley.nlp.wa.exec.Execution;
+import edu.berkeley.nlp.concurrent.WorkQueue;
+import edu.berkeley.nlp.concurrent.WorkQueueReorderer;
+import edu.berkeley.nlp.fig.basic.IOUtils;
+import edu.berkeley.nlp.fig.basic.LogInfo;
+import edu.berkeley.nlp.fig.basic.Option;
+import edu.berkeley.nlp.fig.basic.OutputOrderedMap;
+import edu.berkeley.nlp.fig.basic.StrUtils;
+import edu.berkeley.nlp.fig.basic.String2DoubleMap;
+import edu.berkeley.nlp.fig.exec.Execution;
 import edu.berkeley.nlp.wa.mt.Alignment;
 import edu.berkeley.nlp.wa.mt.SentencePair;
 import edu.berkeley.nlp.wa.mt.SentencePairReader.PairDepot;
-import edu.berkeley.nlp.wa.util.Lists;
+import edu.berkeley.nlp.util.Lists;
 
 /**
  * The evaluator can both test the a model and search for its optimal posterior
@@ -227,7 +227,7 @@ public class Evaluator {
 				if (sp.getEnglishTree() != null) eTreesOut.println(sp.getEnglishTree());
 
 				unionPharaohOut.println(a3.outputHard());
-				if (Main.writePosteriors) unionPharaohOutSoft.println(a3.outputSoft());
+				if (Main.writePosteriors) unionPharaohOutSoft.println(a3.outputSoft(Main.writePosteriorsThreshold));
 
 				idx++;
 			}
@@ -260,4 +260,145 @@ public class Evaluator {
 
 		end_track();
 	}
+		
+	public static void writeITGInputFiles(PairDepot pairs, final WordAligner wa, String trainSubdirName, 
+		String testSubdirName, String prefix, boolean writeTrees) {
+		
+		track("Writing ITG inputs for %d sentences", pairs.size());
+				
+		String enSuff = Main.englishSuffix;
+		String frSuff = Main.foreignSuffix;
+		final int splitPoint = trainSubdirName.equals("unlabeled") ? -1 : Main.itgTrainTestSplitPoint;
+		
+		String eTextTrainName = Main.itgInputDir+"/"+trainSubdirName+"/train." + enSuff;
+		String eTreesTrainName = Main.itgInputDir+"/"+trainSubdirName+"/train." + enSuff+"trees";
+		String eTextTestName = Main.itgInputDir+"/"+testSubdirName+"/test." + enSuff;
+		String eTreesTestName = Main.itgInputDir+"/"+testSubdirName+"/test." + enSuff+"trees";
+		String fTextTrainName = Main.itgInputDir+"/"+trainSubdirName+"/train." + frSuff;
+		String fTreesTrainName = Main.itgInputDir+"/"+trainSubdirName+"/train." + frSuff+"trees";
+		String fTextTestName = Main.itgInputDir+"/"+testSubdirName+"/test." + frSuff;
+		String fTreesTestName = Main.itgInputDir+"/"+testSubdirName+"/test." + frSuff+"trees";;
+
+		String trainPostName = Main.itgInputDir+"/"+trainSubdirName+"/train."+prefix + ".posteriors";
+		String testPostName = Main.itgInputDir+"/"+testSubdirName+"/test."+prefix + ".posteriors";
+		
+		String trainGoldName = Main.itgInputDir+"/"+trainSubdirName+"/train.align";
+		String testGoldName = Main.itgInputDir+"/"+testSubdirName+"/test.align";
+		
+		// Make sure directory structures are created
+		IOUtils.createNewDirIfNotExistsEasy(Main.itgInputDir);
+		IOUtils.createNewDirIfNotExistsEasy(Main.itgInputDir+"/"+trainSubdirName);
+		if (testSubdirName != null) IOUtils.createNewDirIfNotExistsEasy(Main.itgInputDir+"/"+testSubdirName);
+		
+		// Only open text & gold alignment files if they don't already exist
+
+		final PrintWriter eTrainInputOut = new File(eTextTrainName).exists() ? null : IOUtils.openOutHard(eTextTrainName);
+		final PrintWriter eTrainTreesOut = (new File(eTreesTrainName).exists() || (!writeTrees) ) ? null : IOUtils.openOutHard(eTreesTrainName);
+		final PrintWriter eTestInputOut = (new File(eTextTestName).exists() || (testSubdirName == null)) ? null : IOUtils.openOutHard(eTextTestName);
+		final PrintWriter eTestTreesOut = (new File(eTreesTestName).exists() || (!writeTrees) ) ? null : IOUtils.openOutHard(eTreesTestName);
+		final PrintWriter fTrainInputOut = new File(fTextTrainName).exists() ? null : IOUtils.openOutHard(fTextTrainName);
+		final PrintWriter fTrainTreesOut = (new File(fTreesTrainName).exists() || (!writeTrees) ) ? null : IOUtils.openOutHard(fTreesTrainName);
+		final PrintWriter fTestInputOut = (new File(fTextTestName).exists() || (testSubdirName == null)) ? null : IOUtils.openOutHard(fTextTestName);
+		final PrintWriter fTestTreesOut = (new File(fTreesTestName).exists() || (!writeTrees) ) ? null : IOUtils.openOutHard(fTreesTestName);
+
+		final PrintWriter trainPostOut =  IOUtils.openOutHard(trainPostName);
+		final PrintWriter testPostOut =  (testSubdirName == null) ? null : IOUtils.openOutHard(testPostName);
+		
+		final PrintWriter trainGoldOut =  (new File(trainGoldName).exists() || (testSubdirName == null)) ? null : IOUtils.openOutHard(trainGoldName);
+		final PrintWriter testGoldOut =   (new File(testGoldName).exists() || (testSubdirName == null)) ? null : IOUtils.openOutHard(testGoldName);
+				
+		final int numPairs = pairs.size();
+
+		// Training output procedure for each sentence
+		final WorkQueueReorderer<List<Object>> writer;
+		writer = new WorkQueueReorderer<List<Object>>() {
+			int idx = 0;
+
+			@Override
+			public void process(List<Object> queueOutput) {
+				logs("Sentence %d/%d", idx, numPairs);
+				SentencePair sp = (SentencePair) queueOutput.get(0);
+				Alignment goldAlign = sp.getAlignment();
+				Alignment guessAlign = (Alignment) queueOutput.get(1);
+
+				if ((idx < splitPoint) || (splitPoint <= 0)) {
+					if (eTrainInputOut != null) {
+						eTrainInputOut.println(StrUtils.join(sp.getEnglishWords(), " "));
+						fTrainInputOut.println(StrUtils.join(sp.getForeignWords(), " "));
+					}
+					if (eTrainTreesOut != null) {
+						eTrainTreesOut.println(sp.getEnglishTree().toString());
+						fTrainTreesOut.println(sp.getForeignTree().toString());
+					}
+					if (trainGoldOut != null) {
+						trainGoldOut.println(goldAlign.outputHard());
+					}
+					if (Main.writePosteriors) trainPostOut.println(guessAlign.outputSoft(Main.writePosteriorsThreshold));
+				
+				} else {
+					if (eTestInputOut != null) {
+						eTestInputOut.println(StrUtils.join(sp.getEnglishWords(), " "));
+						fTestInputOut.println(StrUtils.join(sp.getForeignWords(), " "));
+					}
+					if (eTestTreesOut != null) {
+						eTestTreesOut.println(sp.getEnglishTree().toString());
+						fTestTreesOut.println(sp.getForeignTree().toString());
+					}
+					if (testGoldOut != null) {
+						testGoldOut.println(goldAlign.outputHard());
+					}
+					if (Main.writePosteriors && testPostOut != null) testPostOut.println(guessAlign.outputSoft(Main.writePosteriorsThreshold));
+				}
+				
+				idx++;
+			}
+		};
+
+		// Align each sentence, multi-threading the work
+		WorkQueue wq = new WorkQueue(EMWordAligner.numThreads);
+		int i = 0;
+		for (final SentencePair sp : pairs) {
+			final int idx = i++;
+			wq.execute(new Runnable() {
+				public void run() {
+					Alignment a3 = wa.alignSentencePair(sp); // Combined
+					writer.addToProcessQueue(idx, (List) Lists.newList(sp, a3));
+				}
+			});
+		}
+		wq.finishWork();
+
+		if (eTrainInputOut != null) {
+			eTrainInputOut.close();
+			fTrainInputOut.close();
+		}
+		if (eTrainTreesOut != null) {
+			eTrainTreesOut.close();
+			fTrainTreesOut.close();
+		}
+		
+		if (eTestInputOut != null) {
+			eTestInputOut.close();
+			fTestInputOut.close();
+		}
+		if (eTestTreesOut != null) {
+			eTestTreesOut.close();
+			fTestTreesOut.close();
+		}
+		
+		if (trainGoldOut != null) {
+			trainGoldOut.close();
+		}
+		if (testGoldOut != null) {
+			testGoldOut.close();
+		}
+
+		if (Main.writePosteriors) {
+			trainPostOut.close();
+			if (testPostOut != null) testPostOut.close();
+		}
+
+		end_track();
+	}
+
 }

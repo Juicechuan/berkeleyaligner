@@ -4,8 +4,8 @@ import java.io.Serializable;
 import java.util.List;
 import java.util.concurrent.Semaphore;
 
-import edu.berkeley.nlp.wa.basic.LogInfo;
-import edu.berkeley.nlp.wa.basic.NumUtils;
+import edu.berkeley.nlp.fig.basic.LogInfo;
+import edu.berkeley.nlp.fig.basic.NumUtils;
 import edu.berkeley.nlp.wa.mt.Alignment;
 import edu.berkeley.nlp.wa.mt.SentencePair;
 import edu.berkeley.nlp.wordAlignment.distortion.DistortionModel;
@@ -43,6 +43,9 @@ public abstract class SentencePairState implements Serializable {
 
 	// Two types of decoding: posterior and viterbi
 	public abstract Alignment getViterbi(boolean reverse);
+	
+	// Two types of decoding: posterior and viterbi
+	public abstract Alignment getViterbi(SentencePair sp, boolean reverse);
 
 	// If !reverse, return a JxI matrix which is the posterior probability of an alignment (i,j)
 	// If reverse, return an IxJ matrix ...

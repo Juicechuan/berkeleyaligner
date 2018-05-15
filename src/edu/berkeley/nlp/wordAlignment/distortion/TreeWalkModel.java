@@ -10,12 +10,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
-import edu.berkeley.nlp.wa.basic.LogInfo;
-import edu.berkeley.nlp.wa.basic.NumUtils;
-import edu.berkeley.nlp.wa.basic.Option;
 import edu.berkeley.nlp.wa.mt.SentencePair;
 import edu.berkeley.nlp.wa.syntax.Tree;
-import edu.berkeley.nlp.wa.util.ArrayUtil;
+import edu.berkeley.nlp.fig.basic.LogInfo;
+import edu.berkeley.nlp.fig.basic.NumUtils;
+import edu.berkeley.nlp.fig.basic.Option;
+import edu.berkeley.nlp.util.ArrayUtil;
 import edu.berkeley.nlp.wordAlignment.TrainingCache;
 import edu.berkeley.nlp.wordAlignment.distortion.SyntacticProfile.Transition;
 
@@ -95,6 +95,7 @@ public class TreeWalkModel extends BucketModel {
 		}
 
 		public double get(int state, int h, int i, int I) {
+			
 			double cached = prof.transitionCostCache[h + 1][i];
 			if (cached > 0) {
 				return cached;

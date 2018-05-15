@@ -1,7 +1,7 @@
 package edu.berkeley.nlp.wordAlignment;
 
-import static edu.berkeley.nlp.wa.basic.LogInfo.logss;
-import edu.berkeley.nlp.wa.basic.BigStatFig;
+import static edu.berkeley.nlp.fig.basic.LogInfo.logss;
+import edu.berkeley.nlp.fig.basic.BigStatFig;
 
 public class Performance {
   public Performance(double precision, double recall, double aer) {

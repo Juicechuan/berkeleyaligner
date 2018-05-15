@@ -9,7 +9,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
-import edu.berkeley.nlp.wa.basic.StrUtils;
+import edu.berkeley.nlp.fig.basic.StrUtils;
 
 /**
  * @author Alexandre Bouchard 

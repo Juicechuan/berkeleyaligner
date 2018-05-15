@@ -1,12 +1,12 @@
 package edu.berkeley.nlp.wordAlignment;
 
-import static edu.berkeley.nlp.wa.basic.LogInfo.end_track;
-import static edu.berkeley.nlp.wa.basic.LogInfo.logs;
-import static edu.berkeley.nlp.wa.basic.LogInfo.printProgStatus;
-import static edu.berkeley.nlp.wa.basic.LogInfo.track;
-import edu.berkeley.nlp.wa.basic.IOUtils;
-import edu.berkeley.nlp.wa.basic.OutputOrderedMap;
-import edu.berkeley.nlp.wa.exec.Execution;
+import static edu.berkeley.nlp.fig.basic.LogInfo.end_track;
+import static edu.berkeley.nlp.fig.basic.LogInfo.logs;
+import static edu.berkeley.nlp.fig.basic.LogInfo.printProgStatus;
+import static edu.berkeley.nlp.fig.basic.LogInfo.track;
+import edu.berkeley.nlp.fig.basic.IOUtils;
+import edu.berkeley.nlp.fig.basic.OutputOrderedMap;
+import edu.berkeley.nlp.fig.exec.Execution;
 import edu.berkeley.nlp.wordAlignment.distortion.DistortionModel;
 
 /**
@@ -17,13 +17,13 @@ public abstract class IterWordAligner<D extends DistortionModel> extends WordAli
 	// Used to evaluate performance during training time
 	transient Evaluator evaluator;
 	boolean reverse; // Whether to reverse roles of French and English
-	transient TrainingCache trainingCache;
+	public transient TrainingCache trainingCache;
 
 	// Record performance over iterations
 	transient OutputOrderedMap<String, String> aerMap, changeMap;
 
 	// Parameters
-	Model<D> params, newParams;
+	public Model<D> params, newParams;
 	int iter, numIters;
 	double aer;
 
@@ -97,7 +97,7 @@ public abstract class IterWordAligner<D extends DistortionModel> extends WordAli
 	 end_track();
 	 }*/
 
-	void setModel(Model<D> model) {
+	public void setModel(Model<D> model) {
 		params = model;
 		trainingCache.clear();
 	}

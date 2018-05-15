@@ -1,40 +1,43 @@
-package edu.berkeley.nlp.wordAlignment;
+ package edu.berkeley.nlp.wordAlignment;
 
-import static edu.berkeley.nlp.wa.basic.LogInfo.logs;
+import static edu.berkeley.nlp.fig.basic.LogInfo.logs;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.InputMismatchException;
 import java.util.List;
 
-import edu.berkeley.nlp.wa.basic.Exceptions;
-import edu.berkeley.nlp.wa.basic.Fmt;
-import edu.berkeley.nlp.wa.basic.IOUtils;
-import edu.berkeley.nlp.wa.basic.LogInfo;
-import edu.berkeley.nlp.wa.basic.Option;
-import edu.berkeley.nlp.wa.basic.String2DoubleMap;
-import edu.berkeley.nlp.wa.exec.Execution;
 import edu.berkeley.nlp.wa.mt.SentencePair;
 import edu.berkeley.nlp.wa.mt.SentencePairReader;
 import edu.berkeley.nlp.wa.mt.SentencePairReader.PairDepot;
 import edu.berkeley.nlp.wa.syntax.Tree;
 import edu.berkeley.nlp.wa.syntax.Trees;
-import edu.berkeley.nlp.wa.util.Filter;
-import edu.berkeley.nlp.wa.util.Filters;
-import edu.berkeley.nlp.wa.util.Lists;
-import edu.berkeley.nlp.wa.util.Maxer;
+import edu.berkeley.nlp.fig.basic.Exceptions;
+import edu.berkeley.nlp.fig.basic.Fmt;
+import edu.berkeley.nlp.fig.basic.IOUtils;
+import edu.berkeley.nlp.fig.basic.LogInfo;
+import edu.berkeley.nlp.fig.basic.Option;
+import edu.berkeley.nlp.fig.basic.String2DoubleMap;
+import edu.berkeley.nlp.fig.exec.Execution;
+import edu.berkeley.nlp.util.Filter;
+import edu.berkeley.nlp.util.Filters;
+import edu.berkeley.nlp.util.Lists;
+import edu.berkeley.nlp.util.Maxer;
 import edu.berkeley.nlp.wordAlignment.combine.WordAlignerCompetitiveThresholding;
 import edu.berkeley.nlp.wordAlignment.combine.WordAlignerHardIntersect;
 import edu.berkeley.nlp.wordAlignment.combine.WordAlignerHardUnion;
 import edu.berkeley.nlp.wordAlignment.combine.WordAlignerSoftIntersect;
 import edu.berkeley.nlp.wordAlignment.combine.WordAlignerSoftUnion;
+import edu.berkeley.nlp.wordAlignment.distortion.DepTreeDistanceModel;
 import edu.berkeley.nlp.wordAlignment.distortion.DistortionModel;
 import edu.berkeley.nlp.wordAlignment.distortion.IBMModel1;
 import edu.berkeley.nlp.wordAlignment.distortion.IBMModel2;
 import edu.berkeley.nlp.wordAlignment.distortion.StateMapper;
 import edu.berkeley.nlp.wordAlignment.distortion.StringDistanceModel;
+import edu.berkeley.nlp.wordAlignment.distortion.TreeDistanceModel;
 import edu.berkeley.nlp.wordAlignment.distortion.TreeWalkModel;
 import edu.berkeley.nlp.wordAlignment.distortion.StateMapper.EndsStateMapper;
 import edu.berkeley.nlp.wordAlignment.distortion.StateMapper.SingleStateMapper;
@@ -44,7 +47,7 @@ import edu.berkeley.nlp.wordAlignment.distortion.StateMapper.SingleStateMapper;
  */
 public class Main implements Runnable {
 	public enum ModelT {
-		MODEL1, MODEL2, HMM, SYNTACTIC, NONE
+		MODEL1, MODEL2, HMM, SYNTACTIC, HMMTREE, NONE
 	};
 
 	public enum TrainMode {
@@ -54,14 +57,14 @@ public class Main implements Runnable {
 	// Input parameters
 	@Option(gloss = "Directories or files containing training files.")
 	public ArrayList<String> trainSources = Lists.newList("example/train");
+	@Option(gloss = "Directories or files containing training files.")
+	public ArrayList<String> decodeSources = Lists.newList("example/decode");
 	@Option(gloss = "Directory or file containing testing files.")
 	public ArrayList<String> testSources = Lists.newList("example/test");
 	@Option(name = "sentences", gloss = "Maximum number of the training sentences to use")
 	public int maxTrainSentences = Integer.MAX_VALUE;
 	@Option(gloss = "Skip this number of the first training sentences")
 	public int offsetTrainingSentences = 0;
-	@Option(gloss = "Maximum length (in words) of a training sentence")
-	public static int maxTrainingLength = 200;
 	@Option(gloss = "Maximum number of the test sentences to use")
 	public int maxTestSentences = Integer.MAX_VALUE;
 	@Option(gloss = "Skip this number of the first test sentences")
@@ -70,8 +73,19 @@ public class Main implements Runnable {
 	public static String foreignSuffix = "f";
 	@Option(gloss = "English language file suffix")
 	public static String englishSuffix = "e";
+
+	@Option(gloss = "When writing test (ITG) posteriors, where to divide train/test data?")
+	public static int itgTrainTestSplitPoint = 0;
+	
+	@Option(gloss = "What directory should we dump ITG test data to?")
+	public static String itgInputDir = "";
+	
 	@Option(gloss = "Reverse test set alignments (i.e., foreign to english)")
 	public boolean reverseAlignments = false;
+
+	@Option(gloss = "Are alignments one-indexed (default == no, 0-indexed)")
+	public boolean oneIndexed = false;
+	
 	@Option(gloss = "Convert all words to lowercase")
 	public boolean lowercaseWords = false;
 	@Option(gloss = "Don't load and store the training set upfront (slower, but less memory)")
@@ -105,8 +119,12 @@ public class Main implements Runnable {
 	public boolean saveAlignOutput = true;
 	@Option(gloss = "Produce two GIZA files and a Pharaoh file for translation")
 	public boolean alignTraining = false;
+
 	@Option(gloss = "Produce posterior alignment weight file when aligning training (lots of disk space)")
 	public static boolean writePosteriors = false;
+	@Option(gloss = "In outputting posteriors, where do we threshold them (0.0 == all posteriors)")
+	public static double writePosteriorsThreshold = 0.0;
+	
 	@Option(gloss = "Produce two lexical translation tables for lexical weighting (unsupported)")
 	public boolean saveLexicalWeights = false;
 
@@ -145,13 +163,16 @@ public class Main implements Runnable {
 		SentencePairReader spReader = new SentencePairReader(lowercaseWords);
 		spReader.setEnglishExtension(englishSuffix);
 		spReader.setForeignExtension(foreignSuffix);
-		spReader.setReverseAlignments(reverseAlignments);
+		spReader.setReverseAndOneIndex(reverseAlignments, oneIndexed);
 
 		// Read (or prepare to read) data
 		LogInfo.track("Preparing Training Data");
 		PairDepot testPairs = spReader.pairDepotFromSources(testSources,
 				offsetTestSentences, maxTestSentences, getTestFilter(), false);
 		PairDepot trainingPairs = spReader.pairDepotFromSources(trainSources,
+				offsetTrainingSentences, maxTrainSentences, getTrainingFilter(),
+				leaveTrainingOnDisk); 
+		PairDepot decodePairs = spReader.pairDepotFromSources(decodeSources,
 				offsetTrainingSentences, maxTrainSentences, getTrainingFilter(),
 				leaveTrainingOnDisk);
 		LogInfo.end_track();
@@ -277,6 +298,19 @@ public class Main implements Runnable {
 		}
 		LogInfo.end_track();
 
+		// Write thresholded posteriors from final stage models
+		if (!itgInputDir.equals("")) {
+			if (alignTraining) {
+				IOUtils.recursiveRemoveUnder(itgInputDir+"/unlabeled");
+				Evaluator.writeITGInputFiles(trainingPairs, wa1, "unlabeled", null, forwardModels.get(numStages-1).toString()+".fe", (trainingPairs.asList().get(0).getEnglishTree() != null));
+				Evaluator.writeITGInputFiles(trainingPairs, wa2, "unlabeled", null, forwardModels.get(numStages-1).toString()+".ef", (trainingPairs.asList().get(0).getEnglishTree() != null));
+			}
+			IOUtils.recursiveRemoveUnder(itgInputDir+"/supervised-train");
+			IOUtils.recursiveRemoveUnder(itgInputDir+"/test");
+			Evaluator.writeITGInputFiles(testPairs, wa1, "supervised-train", "test", forwardModels.get(numStages-1).toString()+".fe", (testPairs.asList().get(0).getEnglishTree() != null));
+			Evaluator.writeITGInputFiles(testPairs, wa2, "supervised-train", "test", reverseModels.get(numStages-1).toString()+".ef", (testPairs.asList().get(0).getEnglishTree() != null));
+		}
+		
 		// Evaluate
 		List<WordAligner> aligners = loadAligners(wa1, wa2);
 		WordAligner bestwa = aligners.get(0);
@@ -302,7 +336,7 @@ public class Main implements Runnable {
 			LogInfo.end_track();
 		}
 
-		if (alignTraining) Evaluator.writeAlignments(trainingPairs, bestwa, "training");
+		if (alignTraining) Evaluator.writeAlignments(decodePairs, bestwa, "training");
 	}
 
 	private void checkOptions() {
@@ -313,7 +347,7 @@ public class Main implements Runnable {
 			throw Exceptions.bad(msg);
 		}
 		testfile.close();
-		IOUtils.deleteFile(Execution.getFile("test"));
+		(new File(Execution.getFile("test"))).delete();
 
 		// Check Training regimen
 		getNumStagesAndCheckRegimen();
@@ -376,7 +410,6 @@ public class Main implements Runnable {
 						}
 					}
 				}
-				LogInfo.logss("Dictionary loaded");
 				return dict;
 			} catch (IOException e) {
 				LogInfo.error("Problem loading dictionary file: " + dictionary);
@@ -394,6 +427,9 @@ public class Main implements Runnable {
 		} else if (model == ModelT.HMM) {
 			StateMapper mapper = new EndsStateMapper();
 			distModel = new StringDistanceModel(mapper);
+		} else if (model == ModelT.HMMTREE) {
+			StateMapper mapper = new EndsStateMapper();
+			distModel = new DepTreeDistanceModel(mapper);
 		} else if (model == ModelT.SYNTACTIC) {
 			StateMapper mapper = new SingleStateMapper();
 			distModel = new TreeWalkModel(mapper);
@@ -439,11 +475,12 @@ public class Main implements Runnable {
 		for (String w : pair.getEnglishTree().getYield()) {
 			yield.add(w.toLowerCase().intern());
 		}
-
-		if (!yield.equals(pair.getEnglishWords())) {
-			return false;
-		}
-		if(yield.size() > maxTrainingLength) return false;
+		
+		assert yield.size() == pair.getEnglishWords().size();
+		// we asume all the trees are matched 
+//		if (!yield.equals(pair.getEnglishWords())) {
+//			return false;
+//		}
 		return true;
 	}
 

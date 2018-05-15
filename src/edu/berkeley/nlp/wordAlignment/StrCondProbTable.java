@@ -7,14 +7,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import edu.berkeley.nlp.wa.basic.BigStatFig;
-import edu.berkeley.nlp.wa.basic.Fmt;
-import edu.berkeley.nlp.wa.basic.FullStatFig;
-import edu.berkeley.nlp.wa.basic.LogInfo;
-import edu.berkeley.nlp.wa.basic.NumUtils;
-import edu.berkeley.nlp.wa.basic.Pair;
-import edu.berkeley.nlp.wa.basic.String2DoubleMap;
-import edu.berkeley.nlp.wa.basic.StringDoubleMap;
+import edu.berkeley.nlp.fig.basic.BigStatFig;
+import edu.berkeley.nlp.fig.basic.Fmt;
+import edu.berkeley.nlp.fig.basic.FullStatFig;
+import edu.berkeley.nlp.fig.basic.LogInfo;
+import edu.berkeley.nlp.fig.basic.NumUtils;
+import edu.berkeley.nlp.fig.basic.Pair;
+import edu.berkeley.nlp.fig.basic.String2DoubleMap;
+import edu.berkeley.nlp.fig.basic.StringDoubleMap;
 import edu.berkeley.nlp.wa.mt.SentencePair;
 
 /**

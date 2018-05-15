@@ -37,7 +37,7 @@ public class WordAlignerCompetitiveThresholding extends WordAligner {
 	}
 
 	public static Alignment competitiveThresholding(Alignment al, double threshold) {
-		double[][] post = al.getPosteriors();
+		double[][] post = al.getForeignByEnglishPosteriors();
 		//		Alignment alThresholded = al.thresholdAlignmentByStrength(threshold);
 		int I = post.length;
 		int J = post[0].length;

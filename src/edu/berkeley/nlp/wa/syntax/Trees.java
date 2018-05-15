@@ -10,8 +10,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 
-import edu.berkeley.nlp.wa.basic.StrUtils;
-import edu.berkeley.nlp.wa.util.Filter;
+import edu.berkeley.nlp.fig.basic.StrUtils;
+import edu.berkeley.nlp.util.Filter;
 
 /**
  * Tools for displaying, reading, and modifying trees.

@@ -1,7 +1,7 @@
 package edu.berkeley.nlp.wordAlignment;
 
-import static edu.berkeley.nlp.wa.basic.LogInfo.logs;
-import static edu.berkeley.nlp.wa.basic.LogInfo.logss;
+import static edu.berkeley.nlp.fig.basic.LogInfo.logs;
+import static edu.berkeley.nlp.fig.basic.LogInfo.logss;
 
 import java.io.PrintWriter;
 import java.io.Serializable;
@@ -10,13 +10,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import edu.berkeley.nlp.wa.basic.BigStatFig;
-import edu.berkeley.nlp.wa.basic.Fmt;
-import edu.berkeley.nlp.wa.basic.IOUtils;
-import edu.berkeley.nlp.wa.basic.Option;
-import edu.berkeley.nlp.wa.basic.Pair;
-import edu.berkeley.nlp.wa.basic.String2DoubleMap;
-import edu.berkeley.nlp.wa.exec.Execution;
+import javax.security.auth.callback.TextOutputCallback;
+
+import edu.berkeley.nlp.fig.basic.BigStatFig;
+import edu.berkeley.nlp.fig.basic.Fmt;
+import edu.berkeley.nlp.fig.basic.IOUtils;
+import edu.berkeley.nlp.fig.basic.Option;
+import edu.berkeley.nlp.fig.basic.Pair;
+import edu.berkeley.nlp.fig.basic.String2DoubleMap;
+import edu.berkeley.nlp.fig.exec.Execution;
 import edu.berkeley.nlp.wa.mt.Alignment;
 import edu.berkeley.nlp.wa.mt.AlignmentRenderer;
 import edu.berkeley.nlp.wa.mt.SentencePair;
@@ -59,6 +61,7 @@ public class AlignmentsInfo implements Serializable {
 
 			txtOut.println("Alignment " + sentencePair.getSentenceID() + ":");
 			txtOut.println(Alignment.render(referenceAlignment, proposedAlignment, dictionary));
+
 		}
 		txtOut.close();
 	}

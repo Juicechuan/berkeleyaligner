@@ -1,16 +1,18 @@
 package edu.berkeley.nlp.wordAlignment.distortion;
 
-import static edu.berkeley.nlp.wa.basic.LogInfo.dbg;
-import static edu.berkeley.nlp.wa.basic.LogInfo.error;
-import static edu.berkeley.nlp.wa.basic.LogInfo.logs;
-import static edu.berkeley.nlp.wa.basic.LogInfo.warning;
+import static edu.berkeley.nlp.fig.basic.LogInfo.dbg;
+import static edu.berkeley.nlp.fig.basic.LogInfo.error;
+import static edu.berkeley.nlp.fig.basic.LogInfo.logs;
+import static edu.berkeley.nlp.fig.basic.LogInfo.warning;
 
-import edu.berkeley.nlp.wa.basic.DoubleVec;
-import edu.berkeley.nlp.wa.basic.Fmt;
-import edu.berkeley.nlp.wa.basic.Indexer;
-import edu.berkeley.nlp.wa.basic.IntVec;
-import edu.berkeley.nlp.wa.basic.LogInfo;
-import edu.berkeley.nlp.wa.basic.NumUtils;
+import java.util.List;
+
+import edu.berkeley.nlp.fig.basic.DoubleVec;
+import edu.berkeley.nlp.fig.basic.Fmt;
+import edu.berkeley.nlp.fig.basic.Indexer;
+import edu.berkeley.nlp.fig.basic.IntVec;
+import edu.berkeley.nlp.fig.basic.LogInfo;
+import edu.berkeley.nlp.fig.basic.NumUtils;
 import edu.berkeley.nlp.wa.mt.Alignment;
 import edu.berkeley.nlp.wa.mt.SentencePair;
 import edu.berkeley.nlp.wordAlignment.EMWordAligner;
@@ -56,6 +58,8 @@ public class HMMSentencePairState extends SentencePairState {
 	private static final double UNKNOWN_WORD_PROB = 0.00001;
 	WATrellis trellis;
 	TrellisOutput toutput;
+	
+	
 	HMMExpAlign expAlign; // Expected alignments (created after computeExpAlign())
 	public static WAState.Factory factory = new WAState.Factory();
 
@@ -76,6 +80,7 @@ public class HMMSentencePairState extends SentencePairState {
 	@SuppressWarnings("unchecked")
 	public HMMSentencePairState(SentencePair sp, EMWordAligner wa) {
 		super(sp.getEnglishWords(), sp.getForeignWords(), wa);
+		
 		this.trellis = ((HMMTrainingCache) wa.getTrainingCache()).getTrellis(factory, I, wa
 				.getParams(), sp);
 	}
@@ -164,6 +169,24 @@ public class HMMSentencePairState extends SentencePairState {
 		}
 		return alignment;
 	}
+	
+	public Alignment getViterbi(SentencePair sp, boolean reverse) {
+		int[] path = trellis.computeViterbiPath(computeEmissionWeights());
+
+		// Extract alignment from states
+		Alignment alignment = new Alignment(sp.getEnglishWords(), sp.getForeignWords());
+		for (int j = 0; j < J; j++) {
+			WAState stateObj = (WAState) trellis.states.getObject(path[j]);
+			if (stateObj.currAligned) {
+				if (!reverse) {
+					alignment.addAlignment(stateObj.i, j, true);
+				} else {
+					alignment.addAlignment(j, stateObj.i, true);
+				}
+			}
+		}
+		return alignment;
+	}
 }
 
 class Trellis {
@@ -171,9 +194,15 @@ class Trellis {
 	int initState; // State of the position before the first position of the sequence
 	int finalState; // State of the position after the last position of the sequence
 	StateMapper stateMapper;
+	
+	SentencePair pair;
 
 	public int numStates() {
 		return states.size();
+	}
+	
+	public void setSentencePair(SentencePair newPair) { 	// update sentence pair when fetch from training cache 
+		this.pair = newPair;
 	}
 
 	// Transition costs
@@ -188,26 +217,57 @@ class Trellis {
 		int numStates = states.size();
 		double[][] alpha = new double[J][numStates];
 
+		
 		for (int j = -1; j < J - 1; j++) {
 			// FOR TRANS
 			int jz = stateMapper.getjz(j, J);
+			Double currentForeignLvl = null;
+			try{
+				currentForeignLvl = pair.getCurrentForeignLvl(j);
+			} catch (IndexOutOfBoundsException e) {
+				LogInfo.warning(pair.dump());
+			}
+			
 			for (int state = 0; state < numStates; state++) {
 				IntVec nextStatesJS = nextStates[jz][state];
 				DoubleVec transWeightsJS = transWeights[jz][state];
+				
+//				double transSum = 0;
+//				for (int q = 0; q < nextStatesJS.size(); q++) {	// renormalize
+//
+//					double transWeight = transWeightsJS.get(q);
+//					
+//					if(currentForeignLvl != null){
+//						transWeight = Math.pow((double) transWeight, Math.exp(currentForeignLvl));
+//						transWeightsJS.set(q, transWeight);
+//					}
+//					
+//					transSum += transWeight;
+//				}
+//
+//				transWeightsJS.multAll(1.0 / transSum);
+				
 				for (int q = 0; q < nextStatesJS.size(); q++) {
 					int state2 = nextStatesJS.get(q);
 					double transWeight = transWeightsJS.get(q);
+					
+					
+					if(currentForeignLvl != null){
+						transWeight = Math.pow((double) transWeight, Math.exp(currentForeignLvl));
+					}
 
 					alpha[j + 1][state2] += (j == -1 ? (state == initState ? 1 : 0)
 							: alpha[j][state] * emissionWeights[j][state])
 							* transWeight;
-
+					
+					
 					if (alpha[j + 1][state2] > 1) {
-						warning("alpha(j=%d,state=%s) = %f > 1", j + 1, states.getObject(state2),
-								alpha[j + 1][state2]);
+//						warning("alpha(j=%d,state=%s) = %f > 1", j + 1, states.getObject(state2),
+//								alpha[j + 1][state2]);
 						alpha[j + 1][state2] = 1;
 					}
 				}
+				
 			}
 		}
 
@@ -229,20 +289,44 @@ class Trellis {
 		for (int j = J - 1; j >= 0; j--) {
 			// FOR TRANS
 			int jz = stateMapper.getjz(j, J);
+			
+			Double currentForeignLvl = pair.getCurrentForeignLvl(j);
+			
 			for (int state = 0; state < numStates; state++) {
 				IntVec nextStatesJS = nextStates[jz][state];
 				DoubleVec transWeightsJS = transWeights[jz][state];
+				
+				
+//				double transSum = 0;
+//				for (int q = 0; q < nextStatesJS.size(); q++) {	// renormalize
+//
+//					double transWeight = transWeightsJS.get(q);
+//					
+//					if(currentForeignLvl != null){
+//						transWeight = Math.pow((double) transWeight, Math.exp(currentForeignLvl));
+//						transWeightsJS.set(q, transWeight);
+//					}
+//					
+//					transSum += transWeight;
+//				}
+//				
+//				transWeightsJS.multAll(1.0 / transSum);
+				
 				for (int q = 0; q < nextStatesJS.size(); q++) {
 					int state2 = nextStatesJS.get(q);
 					double transWeight = transWeightsJS.get(q);
-
+					
+					if(currentForeignLvl != null){
+						transWeight = Math.pow((double) transWeight, Math.exp(currentForeignLvl));
+					}
+					
 					beta[j][state] += (j == J - 1 ? (state2 == finalState ? 1 : 0)
 							: beta[j + 1][state2])
 							* emissionWeights[j][state] * transWeight;
 
 					if (beta[j][state] > 1) {
-						warning("beta(j=%d,state=%s) = %f > 1", j, states.getObject(state),
-								beta[j][state]);
+//						warning("beta(j=%d,state=%s) = %f > 1", j, states.getObject(state),
+//								beta[j][state]);
 						beta[j][state] = 1;
 					}
 				}
@@ -408,7 +492,7 @@ class WATrellis extends Trellis {
 	Model<FirstOrderModel> params;
 	double nullProb; // Specific to this sentence length
 	WAState.Factory factory;
-	SentencePair pair;
+//	SentencePair pair;
 	DistortionParameters distParams;
 
 	public WATrellis(WAState.Factory factory, int I, Model<FirstOrderModel> model,

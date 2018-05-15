@@ -1,7 +1,7 @@
 package edu.berkeley.nlp.wordAlignment.distortion;
 
-import static edu.berkeley.nlp.wa.basic.LogInfo.error;
-import static edu.berkeley.nlp.wa.basic.LogInfo.warning;
+import static edu.berkeley.nlp.fig.basic.LogInfo.error;
+import static edu.berkeley.nlp.fig.basic.LogInfo.warning;
 
 /**
  * Expected counts under a first order model.

@@ -9,7 +9,7 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 
-import edu.berkeley.nlp.wa.basic.Pair;
+import edu.berkeley.nlp.fig.basic.Pair;
 import edu.berkeley.nlp.wa.syntax.Tree;
 import edu.berkeley.nlp.wordAlignment.distortion.TreeWalkModel.TransType;
 

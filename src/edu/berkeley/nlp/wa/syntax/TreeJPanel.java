@@ -27,7 +27,7 @@ import javax.swing.JFrame;
 import javax.swing.JPanel;
 import javax.swing.SwingConstants;
 
-import edu.berkeley.nlp.wa.basic.StrUtils;
+import edu.berkeley.nlp.fig.basic.StrUtils;
 
 /**
  * Class for displaying a Tree.

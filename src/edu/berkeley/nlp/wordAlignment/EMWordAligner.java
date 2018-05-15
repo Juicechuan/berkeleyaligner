@@ -1,23 +1,24 @@
 package edu.berkeley.nlp.wordAlignment;
 
-import static edu.berkeley.nlp.wa.basic.LogInfo.end_track;
-import static edu.berkeley.nlp.wa.basic.LogInfo.logs;
-import static edu.berkeley.nlp.wa.basic.LogInfo.logss;
-import static edu.berkeley.nlp.wa.basic.LogInfo.stdout;
-import static edu.berkeley.nlp.wa.basic.LogInfo.track;
+import static edu.berkeley.nlp.fig.basic.LogInfo.end_track;
+import static edu.berkeley.nlp.fig.basic.LogInfo.logs;
+import static edu.berkeley.nlp.fig.basic.LogInfo.logss;
+import static edu.berkeley.nlp.fig.basic.LogInfo.stdout;
+import static edu.berkeley.nlp.fig.basic.LogInfo.track;
 
 import java.util.Map;
 import java.util.concurrent.Semaphore;
 
-import edu.berkeley.nlp.wa.basic.Fmt;
-import edu.berkeley.nlp.wa.basic.LogInfo;
-import edu.berkeley.nlp.wa.basic.Option;
-import edu.berkeley.nlp.wa.basic.OutputOrderedMap;
-import edu.berkeley.nlp.wa.basic.StopWatch;
-import edu.berkeley.nlp.wa.basic.String2DoubleMap;
-import edu.berkeley.nlp.wa.basic.StringDoubleMap;
-import edu.berkeley.nlp.wa.concurrent.WorkQueue;
-import edu.berkeley.nlp.wa.exec.Execution;
+
+import edu.berkeley.nlp.concurrent.WorkQueue;
+import edu.berkeley.nlp.fig.basic.Fmt;
+import edu.berkeley.nlp.fig.basic.LogInfo;
+import edu.berkeley.nlp.fig.basic.Option;
+import edu.berkeley.nlp.fig.basic.OutputOrderedMap;
+import edu.berkeley.nlp.fig.basic.StopWatch;
+import edu.berkeley.nlp.fig.basic.String2DoubleMap;
+import edu.berkeley.nlp.fig.basic.StringDoubleMap;
+import edu.berkeley.nlp.fig.exec.Execution;
 import edu.berkeley.nlp.wa.mt.Alignment;
 import edu.berkeley.nlp.wa.mt.SentencePair;
 import edu.berkeley.nlp.wa.mt.SentencePairReader.PairDepot;
@@ -55,7 +56,7 @@ public class EMWordAligner extends IterWordAligner<DistortionModel> {
 	public static boolean evaluateDuringTraining = false;
 
 	public EMWordAligner(SentencePairState.Factory spsFactory, Evaluator evaluator,
-			boolean reverse) {
+		boolean reverse) {
 		this.spsFactory = spsFactory;
 		this.evaluator = evaluator;
 		this.reverse = reverse;
@@ -181,11 +182,15 @@ public class EMWordAligner extends IterWordAligner<DistortionModel> {
 			logs("Sentence " + sentNumber + "/" + numPairs);
 
 			SentencePairState sps1, sps2;
-
+			
 			ExpAlign expAlign1, expAlign2;
-
+			sps1 = null;
 			// E-step
+			try{
 			sps1 = wa1.newSentencePairState(sp);
+			} catch(ArrayIndexOutOfBoundsException e) {
+				System.out.println(sp.dump());
+			}	
 			expAlign1 = sps1.computeExpAlign();
 			sps2 = wa2.newSentencePairState(sp);
 			expAlign2 = sps2.computeExpAlign();
@@ -277,9 +282,13 @@ public class EMWordAligner extends IterWordAligner<DistortionModel> {
 			return (new Alignment(sp, false)).thresholdPosteriors(sps
 					.getPosteriors(reverse), posteriorDecodingThreshold);
 		} else {
-			return sps.getViterbi(reverse);
+			return sps.getViterbi(sp, reverse);
 		}
 	}
+	
+//	public double[][] getPosteriors(SentencePair sp) {
+//		return newSentencePairState(sp).getPosteriors(reverse);
+//	}
 
 	public void initializeModel(String loadParamsDir, DistortionModel distModel,
 			boolean loadLexicalModelOnly, boolean reverse, PairDepot trainingPairs) {

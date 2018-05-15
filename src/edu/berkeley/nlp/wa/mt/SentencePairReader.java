@@ -1,35 +1,26 @@
 package edu.berkeley.nlp.wa.mt;
 
-import static edu.berkeley.nlp.wa.basic.LogInfo.end_track;
-import static edu.berkeley.nlp.wa.basic.LogInfo.logs;
-import static edu.berkeley.nlp.wa.basic.LogInfo.track;
+import edu.berkeley.nlp.wa.syntax.DepTree;
+import edu.berkeley.nlp.wa.syntax.Tree;
+import edu.berkeley.nlp.wa.syntax.Trees;
+import edu.berkeley.nlp.wa.syntax.Node;
+import edu.berkeley.nlp.fig.basic.IOUtils;
+import edu.berkeley.nlp.fig.basic.NumUtils;
+import edu.berkeley.nlp.fig.basic.OrderedStringMap;
+import edu.berkeley.nlp.fig.basic.Pair;
+import edu.berkeley.nlp.fig.basic.StrUtils;
+import edu.berkeley.nlp.fig.exec.Execution;
+import edu.berkeley.nlp.util.*;
+import edu.berkeley.nlp.util.Iterators.IteratorIterator;
 
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
-import edu.berkeley.nlp.wa.basic.IOUtils;
-import edu.berkeley.nlp.wa.basic.LogInfo;
-import edu.berkeley.nlp.wa.basic.NumUtils;
-import edu.berkeley.nlp.wa.basic.OrderedStringMap;
-import edu.berkeley.nlp.wa.basic.Pair;
-import edu.berkeley.nlp.wa.basic.StrUtils;
-import edu.berkeley.nlp.wa.exec.Execution;
-import edu.berkeley.nlp.wa.syntax.Tree;
-import edu.berkeley.nlp.wa.syntax.Trees;
-import edu.berkeley.nlp.wa.util.Factory;
-import edu.berkeley.nlp.wa.util.Filter;
-import edu.berkeley.nlp.wa.util.Filters;
-import edu.berkeley.nlp.wa.util.Iterators;
-import edu.berkeley.nlp.wa.util.SuffixFilter;
-import edu.berkeley.nlp.wa.util.Iterators.IteratorIterator;
 
 /**
  * TODO Add tag reading
@@ -97,8 +88,7 @@ public class SentencePairReader {
 				if (iter.hasNext()) {
 					iter.next();
 				} else {
-					LogInfo
-							.error("Pairs available (%d) less than offset (%d)", i,
+					Logger.err("Pairs available (%d) less than offset (%d)", i,
 									offset);
 					break;
 				}
@@ -114,8 +104,9 @@ public class SentencePairReader {
 			if (pairs != null) return pairs;
 			ArrayList<SentencePair> allPairs = new ArrayList<SentencePair>(Math.max(0,
 					size));
+
 			for (SentencePair pair : this) {
-				allPairs.add(pair);
+				allPairs.add(pair);		
 			}
 			return allPairs;
 		}
@@ -143,10 +134,18 @@ public class SentencePairReader {
 		// Input files
 		private String englishFN;
 		private String foreignFN;
-		private String foreignTagFN;
-		private String englishTagFN;
 		private String englishTreeFN;
 		private String foreignTreeFN;
+		
+		private String englishDepTreeFN;
+		private String foreignDepTreeFN;
+		
+		private String englishTagFN;
+		private String foreignTagFN;
+		
+		private String englishLvlFN;
+		private String foreignLvlFN;
+
 		private String alignmentFN;
 		// Output files
 		private PrintWriter englishOutput;
@@ -172,7 +171,13 @@ public class SentencePairReader {
 		private SentencePair next;
 		private BufferedReader englishTrees;
 		private BufferedReader foreignTrees;
+		private BufferedReader englishDepTrees;
+		private BufferedReader foreignDepTrees;
+		private BufferedReader englishLvl;
+		private BufferedReader foreignLvl;
 		private boolean isEmpty;
+
+    private Map<String, Iterator<String>> alignFiles;
 
 		private void saveAcceptedInput(SentencePair pair) {
 			if (saveInput) {
@@ -225,8 +230,32 @@ public class SentencePairReader {
 			foreignTagFN = baseFileName + "." + foreignTagExtension;
 			englishTreeFN = baseFileName + "." + englishTreeExtension;
 			foreignTreeFN = baseFileName + "." + foreignTreeExtension;
+			englishDepTreeFN = baseFileName + "." + englishDepTreeExtension;
+			foreignDepTreeFN = baseFileName + "." + foreignDepTreeExtension;
+			englishLvlFN = baseFileName + "." + englishLvlExtension;
+			foreignLvlFN = baseFileName + "." + foreignLvlExtension;
 			alignmentFN = baseFileName + "." + wordAlignmentExtension;
+      setInputAlignFile();
 		}
+
+    private final Pattern alignFilePattrn = Pattern.compile("^.*?\\.(.*)\\.posteriors$");    
+
+    private void setInputAlignFile() {
+      File f = new File(englishFN);
+      File dir = f.getParentFile();
+      File[] files = dir.listFiles();
+      alignFiles = new HashMap<String,Iterator<String>>();
+      for (File file : files) {
+        String name = file.getAbsolutePath();
+        if (name.contains(baseFileName) && name.endsWith("posteriors")) {
+          Matcher matcher = alignFilePattrn.matcher(name);
+          if (matcher.matches()) {
+            String alignID = matcher.group(1);
+            if (alignID.length() > 0) alignFiles.put(alignID,IOUtils.readLinesHard(name).iterator());
+          }
+        }
+      }
+    }
 
 		private void openOutputAndRejectFiles(String baseFileName) {
 			if (saveInput) {
@@ -284,6 +313,18 @@ public class SentencePairReader {
 
 		}
 
+    private void addAlign(SentencePair sp, String baseFileName) {
+      sp.keyedAligns = new HashMap<String,Alignment>();
+      for (Map.Entry<String, Iterator<String>> entry : alignFiles.entrySet())
+      {
+        String alignKey = entry.getKey();
+        String alignLine = entry.getValue().next();
+        Alignment align = new Alignment(sp.getEnglishWords(),sp.getForeignWords());
+        align.parseAlignments(alignLine);
+        sp.keyedAligns.put(alignKey, align);
+      }
+    }
+
 		private SentencePair readNextSentencePair(String englishLine, String frenchLine,
 				String baseFileName) {
 			Pair<Integer, List<String>> englishIDAndSentence = readSentence(englishLine);
@@ -296,8 +337,10 @@ public class SentencePairReader {
 						+ baseFileName + ", lines were:\n\t" + englishLine + "\n\t"
 						+ frenchLine);
 			if (enID == -1) enID = frID = currSentenceID;
-			return new SentencePair(enID, baseFileName, englishIDAndSentence.getSecond(),
-					frenchIDAndSentence.getSecond());
+      SentencePair sp = new SentencePair(enID, baseFileName, englishIDAndSentence.getSecond(),
+          frenchIDAndSentence.getSecond());
+      addAlign(sp,baseFileName);
+      return sp;
 		}
 
 		private Pair<Integer, List<String>> readSentence(String line) {
@@ -324,16 +367,16 @@ public class SentencePairReader {
 			if (alIn == null) return;
 			try {
 				if (!alIn.ready()) {
-					LogInfo.warning("Ran out of alignments (%s)", baseFileName);
+					Logger.warn("Ran out of alignments (%s)", baseFileName);
 					alIn.close();
 					alIn = null;
 				} else {
 					Alignment alignment = new Alignment(pair, treesInAlignment );
-					alignment.parseAlignments(alIn.readLine(), reverseAlignments);
+					alignment.parseAlignments(alIn.readLine(), reverseAlignments, oneIndexed);
 					pair.setAlignment(alignment);
 				}
 			} catch (IOException e) {
-				LogInfo.error("Problem reading alignment file: "
+				Logger.err("Problem reading alignment file: "
 						+ e.getLocalizedMessage());
 			}
 		}
@@ -343,7 +386,7 @@ public class SentencePairReader {
 			if (reader == null) return; // No file available
 			try {
 				if (!reader.ready()) {
-					LogInfo.warning("Ran out of parses (%s)", baseFileName);
+					Logger.warn("Ran out of parses (%s)", baseFileName);
 					if (foreign) {
 						foreignTrees.close();
 						foreignTrees = null;
@@ -359,7 +402,73 @@ public class SentencePairReader {
 					if (!foreign) pair.setEnglishTree(tree);
 				}
 			} catch (IOException e) {
-				LogInfo.error("Problem reading parse file: " + e.getLocalizedMessage());
+				Logger.err("Problem reading parse file: " + e.getLocalizedMessage());
+			}
+		}
+		
+		private void addDepTreeToPair(SentencePair pair, boolean foreign) {
+			BufferedReader reader = foreign ? foreignDepTrees : englishDepTrees;
+			if (reader == null) return; // No file available
+			try {
+				if (!reader.ready()) {
+					Logger.warn("Ran out of dep parses (%s)", baseFileName);
+					if (foreign) {
+						foreignDepTrees.close();
+						foreignDepTrees = null;
+					} else {
+						englishDepTrees.close();
+						englishDepTrees = null;
+					}
+				} else {
+					// the input dependency tree string should be strictly newline separated
+					DepTree deptree = new DepTree();
+					String deptreeLine = null;
+			        while ((deptreeLine = reader.readLine()) != null) {
+			            if ("".equals(deptreeLine)) {
+			                break;
+			            }
+			            int relEnd = deptreeLine.indexOf("(");
+			            int secondWordStart = deptreeLine.indexOf(", ", relEnd + 1);
+			            String rel = deptreeLine.substring(0, relEnd);
+			            String gov = deptreeLine.substring(relEnd + 1, secondWordStart);
+			            String dep = deptreeLine.substring(secondWordStart + 2, deptreeLine.length() - 1);
+			            Node govNode = deptree.addNode(gov, "");
+			            Node depNode = deptree.addNode(dep, "");
+
+			            deptree.addEdge(govNode, depNode, rel);
+			        }
+					
+					if (foreign) pair.setForeignDepTree(deptree);
+					if (!foreign) pair.setEnglishDepTree(deptree);
+
+				}
+			} catch (IOException e) {
+				Logger.err("Problem reading parse file: " + e.getLocalizedMessage());
+			}
+		}
+		
+		private void addLvlToPair(SentencePair pair, boolean foreign) {
+			BufferedReader reader = foreign ? foreignLvl : englishLvl;
+			if (reader == null) return; // No file available
+			try {
+				if (!reader.ready()) {
+					Logger.warn("Ran out of level lines (%s)", baseFileName);
+					if (foreign) {
+						foreignLvl.close();
+						foreignLvl = null;
+					} else {
+						englishLvl.close();
+						englishLvl = null;
+					}
+				} else {
+					String lvlString = reader.readLine();
+					List<Integer> lvlList = new ArrayList<Integer>();
+					for (String lvlInt: lvlString.split("\\s+")) lvlList.add(Integer.valueOf(lvlInt));
+					if (foreign) pair.setForeignLvl(lvlList);
+					if (!foreign) pair.setEnglishLvl(lvlList);
+				}
+			} catch (IOException e) {
+				Logger.err("Problem reading level file: " + e.getLocalizedMessage());
 			}
 		}
 
@@ -373,7 +482,7 @@ public class SentencePairReader {
 			englishIn = IOUtils.openInEasy(englishFN);
 			frenchIn = IOUtils.openInEasy(foreignFN);
 			if (englishIn == null || frenchIn == null) {
-				LogInfo.warning("File base %s does not have %s and %s extensions",
+				Logger.warn ("File base %s does not have %s and %s extensions",
 						baseFileName, englishExtension, foreignExtension);
 				this.isEmpty = true;
 			} else {
@@ -381,6 +490,9 @@ public class SentencePairReader {
 				alIn = IOUtils.openInEasy(alignmentFN);
 				englishTrees = IOUtils.openInEasy(englishTreeFN);
 				foreignTrees = IOUtils.openInEasy(foreignTreeFN);
+				englishDepTrees = IOUtils.openInEasy(englishDepTreeFN); 
+				foreignDepTrees = IOUtils.openInEasy(foreignDepTreeFN);
+				foreignLvl = IOUtils.openInEasy(foreignLvlFN); // we only add foreign (amr) lvl information
 				loadNext();
 			}
 		}
@@ -400,7 +512,7 @@ public class SentencePairReader {
 			try {
 				next = null;
 				if (englishIn.ready() != frenchIn.ready()) {
-					LogInfo.warning("%s and %s files are different lengths (%s)",
+					Logger.warn("%s and %s files are different lengths (%s)",
 							englishExtension, foreignExtension, baseFileName);
 				}
 				while (next == null && englishIn.ready() && frenchIn.ready()) {
@@ -415,6 +527,9 @@ public class SentencePairReader {
 					addAlignmentToPair(pair);
 					addTreeToPair(pair, false);
 					addTreeToPair(pair, true);
+					addDepTreeToPair(pair, false);
+					addDepTreeToPair(pair, true);
+					addLvlToPair(pair, true);
 					
 					// TODO Support tag input
 
@@ -451,16 +566,23 @@ public class SentencePairReader {
 			closeOutputAndRejectFiles();
 		}
 
-	}
+  }
 
-	private String englishExtension = "e";
+	private String englishExtension = "e.orig.p";
 	private String englishTreeExtension = "etrees";
+	private String englishDepTreeExtension = "edep";
 	private String englishTagExtension = "etags";
-	private String foreignExtension = "f";
+	private String englishLvlExtension = "elvl";
+	private String foreignExtension = "f.orig.p";
 	private String foreignTreeExtension = "ftrees";
+	private String foreignDepTreeExtension = "fdep";
 	private String foreignTagExtension = "ftags";
+	private String foreignLvlExtension = "flvl";
 	private String wordAlignmentExtension = "align";
+	
 	private boolean reverseAlignments = false;
+	private boolean oneIndexed = false;
+	
 	private boolean treesInAlignment = false;
 
 	private static int currSentenceID = 0;
@@ -525,7 +647,7 @@ public class SentencePairReader {
 			final Filter<SentencePair> filter) {
 		// Load file names
 		final List<String> filenames = getBaseFileNamesFromSource(path);
-		if (filenames.size() == 0) LogInfo.error("No files found at source " + path);
+		if (filenames.size() == 0) Logger.err("No files found at source " + path);
 		Collections.sort(filenames);
 		initSaveDirectories();
 
@@ -574,14 +696,14 @@ public class SentencePairReader {
 	public void readSentencePairsFromSource(String path, int offset,
 			int maxSentencePairs, List<SentencePair> sentencePairs,
 			Filter<SentencePair> filter) {
-		track("readSentencePairs(" + path + ")");
+		Logger.startTrack("readSentencePairs(" + path + ")");
 		int startCount = sentencePairs.size();
 		List<String> filenames = getBaseFileNamesFromSource(path);
 		Collections.sort(filenames);
 		readSentencePairsUsingList(filenames, offset, maxSentencePairs, sentencePairs,
 				filter);
-		LogInfo.logss("Finished reading %d sentences", sentencePairs.size() - startCount);
-		end_track();
+		Logger.logss("Finished reading %d sentences", sentencePairs.size() - startCount);
+		Logger.endTrack();
 	}
 
 	// If path is a directory, return the list of files in the directory
@@ -619,7 +741,7 @@ public class SentencePairReader {
 		for (String baseFileName : baseFileNames) {
 			if (sentencePairs.size() >= maxSentencePairs) return;
 			numFiles++;
-			logs("Reading " + numFiles + "/" + baseFileNames.size() + ": " + baseFileName);
+			Logger.logs("Reading " + numFiles + "/" + baseFileNames.size() + ": " + baseFileName);
 			List<SentencePair> subSentencePairs = readSentencePairsFromFile(baseFileName,
 					maxSentencePairs - sentencePairs.size(), filter);
 			int lowerBound = NumUtils.bound(offset, 0, subSentencePairs.size());
@@ -650,7 +772,7 @@ public class SentencePairReader {
 	}
 
 	// For sentence pairs before offset, just stick null instead of the actual sentence
-	private List<SentencePair> readSentencePairsFromFile(String baseFileName,
+	public List<SentencePair> readSentencePairsFromFile(String baseFileName,
 			int maxSentencePairs, Filter<SentencePair> filter) {
 		List<SentencePair> sentencePairs = new ArrayList<SentencePair>();
 		PairIterator pairIterator = getSentencePairsIteratorFromFile(baseFileName, filter);
@@ -673,7 +795,7 @@ public class SentencePairReader {
 		return sentencePairs;
 	}
 
-	private PairIterator getSentencePairsIteratorFromFile(String baseFileName,
+	public PairIterator getSentencePairsIteratorFromFile(String baseFileName,
 			Filter<SentencePair> filter) {
 		return new PairIterator(baseFileName, filter);
 	}
@@ -695,17 +817,30 @@ public class SentencePairReader {
 		this.foreignTreeExtension = ext + "trees";
 	}
 
-	public void setReverseAlignments(boolean reverseAlignments) {
+	public void setReverseAndOneIndex(boolean reverseAlignments, boolean oneIndexed) {
 		this.reverseAlignments = reverseAlignments;
+		this.oneIndexed = oneIndexed;
 	}
 
-	public static void main(String[] args) {
+	public static void main1(String[] args) {
 		Execution.init(args);
 		String testDir = "/Users/denero/Documents/workspace/data/wordalignment/en-fr/utf8/train";
 		SentencePairReader reader = new SentencePairReader(true);
 		List<SentencePair> sentencePairs = new ArrayList<SentencePair>();
 		reader.readSentencePairsFromSource(testDir, 10000, sentencePairs);
 		for (int i = 0; i < 10000; i += 1000) {
+			SentencePair p = sentencePairs.get(i);
+			System.out.println(p.dump());
+		}
+	}
+	
+	public static void main(String[] args) {
+		Execution.init(args);
+		String testDir = "data/test-isi";
+		SentencePairReader reader = new SentencePairReader(true);
+		List<SentencePair> sentencePairs = new ArrayList<SentencePair>();
+		reader.readSentencePairsFromSource(testDir, 100, sentencePairs);
+		for (int i = 0; i < 100; i += 1) {
 			SentencePair p = sentencePairs.get(i);
 			System.out.println(p.dump());
 		}

@@ -2,7 +2,7 @@ package edu.berkeley.nlp.wordAlignment.distortion;
 
 import java.util.List;
 
-import edu.berkeley.nlp.wa.basic.LogInfo;
+import edu.berkeley.nlp.fig.basic.LogInfo;
 import edu.berkeley.nlp.wa.mt.Alignment;
 import edu.berkeley.nlp.wa.mt.SentencePair;
 import edu.berkeley.nlp.wordAlignment.EMWordAligner;
@@ -92,6 +92,39 @@ public class Model1or2SentencePairState extends SentencePairState {
 	}
 
 	public Alignment getViterbi(boolean reverse) {
+		Alignment alignment = new Alignment(enWords, frWords);
+		//Random rand = new Random();
+		for (int j = 0; j < J; j++) {
+			// For each a_j, simply pick the maximum
+			int besti = -1;
+			double bestp = -1;
+
+			String v = fr(j);
+			for (int i = 0; i <= I; i++) {
+				String u = en(i);
+				double p = alignProb(j, i) * wa.getParams().transProbs.getWithErrorMsg(u, v, 0);
+				if (i != I) {
+					int realI = reverse ? j : i;
+					int realJ = reverse ? i : j;
+					alignment.setStrength(realI, realJ, p);
+				}
+				if (p > bestp) {
+					bestp = p;
+					besti = i;
+				}
+			}
+
+			assert besti != -1;
+			if (besti == I) continue; // Skip NULL
+			if (!reverse)
+				alignment.addAlignment(besti, j, true);
+			else
+				alignment.addAlignment(j, besti, true);
+		}
+		return alignment;
+	}
+	
+	public Alignment getViterbi(SentencePair sp, boolean reverse) {
 		Alignment alignment = new Alignment(enWords, frWords);
 		//Random rand = new Random();
 		for (int j = 0; j < J; j++) {

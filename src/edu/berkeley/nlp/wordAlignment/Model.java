@@ -1,14 +1,14 @@
 package edu.berkeley.nlp.wordAlignment;
 
-import static edu.berkeley.nlp.wa.basic.LogInfo.stdout;
+import static edu.berkeley.nlp.fig.basic.LogInfo.stdout;
 
 import java.io.PrintWriter;
 import java.io.Serializable;
 import java.util.List;
 
-import edu.berkeley.nlp.wa.basic.BigStatFig;
-import edu.berkeley.nlp.wa.basic.IOUtils;
-import edu.berkeley.nlp.wa.basic.LogInfo;
+import edu.berkeley.nlp.fig.basic.BigStatFig;
+import edu.berkeley.nlp.fig.basic.IOUtils;
+import edu.berkeley.nlp.fig.basic.LogInfo;
 import edu.berkeley.nlp.wa.mt.SentencePair;
 import edu.berkeley.nlp.wordAlignment.distortion.DistortionModel;
 import edu.berkeley.nlp.wordAlignment.distortion.IBMModel1;

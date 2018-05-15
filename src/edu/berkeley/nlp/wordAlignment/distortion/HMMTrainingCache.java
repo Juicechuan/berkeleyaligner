@@ -25,6 +25,8 @@ public class HMMTrainingCache extends TrainingCache {
       trellis = new WATrellis(factory, I, params, pair);
       if(I <= maxCacheSize)
         trellisCache.put(I, trellis);
+    }else{
+    	trellis.setSentencePair(pair);
     }
     return trellis;
   }

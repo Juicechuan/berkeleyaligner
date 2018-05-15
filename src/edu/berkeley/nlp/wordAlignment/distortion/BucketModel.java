@@ -6,8 +6,8 @@ import java.io.ObjectOutputStream;
 import java.io.PrintWriter;
 import java.util.Arrays;
 
-import edu.berkeley.nlp.wa.basic.LogInfo;
-import edu.berkeley.nlp.wa.basic.NumUtils;
+import edu.berkeley.nlp.fig.basic.LogInfo;
+import edu.berkeley.nlp.fig.basic.NumUtils;
 import edu.berkeley.nlp.wordAlignment.SentencePairState.Factory;
 
 /**
@@ -22,7 +22,7 @@ public abstract class BucketModel implements FirstOrderModel {
 	// P(a_j | a_{j-1}) consists of 2*windowSize+1 buckets
 	// Anything outside the window gets mapped on to the closest bucket.
 	// Also condition on a state.
-	public static final int windowSize = 5;
+	public static final int windowSize = 10;
 	public int numStates;
 
 	protected double[][] probs = null; // Transition distributions

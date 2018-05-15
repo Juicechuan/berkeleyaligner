@@ -1,9 +1,9 @@
 package edu.berkeley.nlp.wordAlignment;
 
-import static edu.berkeley.nlp.wa.basic.LogInfo.end_track;
-import static edu.berkeley.nlp.wa.basic.LogInfo.logs;
-import static edu.berkeley.nlp.wa.basic.LogInfo.stdout;
-import static edu.berkeley.nlp.wa.basic.LogInfo.track;
+import static edu.berkeley.nlp.fig.basic.LogInfo.end_track;
+import static edu.berkeley.nlp.fig.basic.LogInfo.logs;
+import static edu.berkeley.nlp.fig.basic.LogInfo.stdout;
+import static edu.berkeley.nlp.fig.basic.LogInfo.track;
 
 import java.io.File;
 import java.io.IOException;
@@ -13,11 +13,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import edu.berkeley.nlp.wa.basic.IOUtils;
-import edu.berkeley.nlp.wa.basic.ListUtils;
-import edu.berkeley.nlp.wa.basic.LogInfo;
-import edu.berkeley.nlp.wa.basic.String2DoubleMap;
-import edu.berkeley.nlp.wa.basic.StringDoubleMap;
+import edu.berkeley.nlp.fig.basic.IOUtils;
+import edu.berkeley.nlp.fig.basic.ListUtils;
+import edu.berkeley.nlp.fig.basic.LogInfo;
+import edu.berkeley.nlp.fig.basic.String2DoubleMap;
+import edu.berkeley.nlp.fig.basic.StringDoubleMap;
 import edu.berkeley.nlp.wa.mt.SentencePair;
 import edu.berkeley.nlp.wa.mt.SentencePairReader.PairDepot;
 

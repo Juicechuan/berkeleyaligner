@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import edu.berkeley.nlp.wa.util.Method;
+import edu.berkeley.nlp.util.Method;
 
 /**
  * Represent linguistic trees, with each node consisting of a label and a list

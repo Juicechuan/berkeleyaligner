@@ -1,22 +1,13 @@
 package edu.berkeley.nlp.wa.mt;
 
-import java.io.PrintWriter;
-import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
-import edu.berkeley.nlp.wa.basic.MapUtils;
-import edu.berkeley.nlp.wa.basic.Pair;
-import edu.berkeley.nlp.wa.basic.StrUtils;
-import edu.berkeley.nlp.wa.basic.String2DoubleMap;
-import edu.berkeley.nlp.wa.basic.StringDoubleMap;
+import edu.berkeley.nlp.fig.basic.*;
 import edu.berkeley.nlp.wa.syntax.Tree;
 
+import java.io.PrintWriter;
+import java.io.Serializable;
+import java.util.*;
+
+// A comment
 /**
  * Alignments serve two purposes, both to indicate your system's guessed
  * alignment, and to hold the gold standard alignments. Alignments map index
@@ -62,7 +53,7 @@ public class Alignment implements Serializable {
 	Set<Pair<Integer, Integer>> sureAlignments;
 	Set<Pair<Integer, Integer>> possibleAlignments;
 	private List<List<Integer>> foreignAlignments, englishAlignments;
-	Map<Pair<Integer, Integer>, Double> strengths; // Strength of alignments
+	public Map<Pair<Integer, Integer>, Double> strengths; // Strength of alignments
 	private List<String> englishSentence, foreignSentence;
 	private Tree<String> englishTree, foreignTree;
 	private List<AlignmentNode> englishNodes, foreignNodes;
@@ -243,23 +234,29 @@ public class Alignment implements Serializable {
 		return MapUtils.get(strengths, new Pair<Integer, Integer>(i, j), 0.0);
 	}
 
-	public double[][] getPosteriors(int I, int J) {
-		double[][] posteriors = new double[J][I];
-		for (int j = 0; j < J; j++)
-			for (int i = 0; i < I; i++)
-				posteriors[j][i] = getStrength(i, j);
-		return posteriors;
+  double[][] cachedPosteriors = null;
+  double[][] cachedTransposePosteriors = null;
+
+	public double[][] getForeignByEnglishPosteriors() {
+		int n = getEnglishLength();
+		int m = getForeignLength();
+		if (cachedPosteriors == null) {
+			cachedPosteriors = new double[m][n];
+			for (int j = 0; j < m; j++)
+				for (int i = 0; i < n; i++)
+					cachedPosteriors[j][i] = getStrength(i, j);
+		}
+		return cachedPosteriors;
 	}
 
-	public double[][] getPosteriors() {
-		int I = getEnglishLength();
-		int J = getForeignLength();
-		double[][] posteriors = new double[J][I];
-		for (int j = 0; j < J; j++)
-			for (int i = 0; i < I; i++)
-				posteriors[j][i] = getStrength(i, j);
-		return posteriors;
-	}
+  // Return [English x foreign] posteriors
+  public double[][] getEnglishByForeignPosteriors() {
+    if (cachedTransposePosteriors == null) {
+      cachedTransposePosteriors = NumUtils.transpose(getForeignByEnglishPosteriors());
+    }
+    return cachedTransposePosteriors;
+  }
+
 
 	public List<Integer> getAlignmentsToEnglish(int englishPos) {
 		if (englishAlignments == null) {
@@ -321,7 +318,9 @@ public class Alignment implements Serializable {
 	}
 
 	public void setStrength(int i, int j, double strength) {
-		strengths.put(new Pair<Integer, Integer>(i, j), strength);
+    if (strength >= 0.01) {
+		  strengths.put(new Pair<Integer, Integer>(i, j), strength);
+    }
 	}
 
 	/////////////////////
@@ -351,11 +350,11 @@ public class Alignment implements Serializable {
 	 */
 	public Alignment thresholdPosteriors(double[][] posteriors, double threshold) {
 		Alignment newAlignment = new Alignment(this);
-		int J = posteriors.length; // Foreign length
-		int I = posteriors[0].length; // English length
-		assert (J == getForeignLength() && I == getEnglishLength());
-		for (int j = 0; j < J; j++) {
-			for (int i = 0; i < I; i++) {
+		int m = posteriors.length; // Foreign length
+		int n = posteriors[0].length; // English length
+		assert (m == getForeignLength() && n == getEnglishLength());
+		for (int j = 0; j < m; j++) {
+			for (int i = 0; i < n; i++) {
 				newAlignment.setStrength(i, j, posteriors[j][i]);
 				if (posteriors[j][i] >= threshold) {
 					newAlignment.addAlignment(i, j, true);
@@ -576,7 +575,7 @@ public class Alignment implements Serializable {
 	 * the appropriate format (soft if available, otherwise hard).
 	 */
 	public String output() {
-		return dumpModifiedPharaoh(!(strengths == null || strengths.isEmpty()));
+		return dumpModifiedPharaoh(!(strengths == null || strengths.isEmpty()), 0.0);
 	}
 
 	/**
@@ -585,12 +584,12 @@ public class Alignment implements Serializable {
 	 *
 	 * For example, if we have 7 sure alignments and two possibles, we get:
 	 *
-	 * enPos1-frPos1 enPos2-frPos2 ... enPos8-frPos8-P enPos9-frPos9-P
+	 * frPos1-enPos1 frPos2-enPos2 ... frPos8-enPos8-P frPos9-enPos9-P
 	 *
 	 * here, the -P indicates possible alignments.
 	 */
 	public String outputHard() {
-		return dumpModifiedPharaoh(false);
+		return dumpModifiedPharaoh(false, 0.0);
 	}
 
 	/**
@@ -600,17 +599,23 @@ public class Alignment implements Serializable {
 	 * enPos-frPos-strength
 	 */
 	public String outputSoft() {
-		return dumpModifiedPharaoh(true);
+		return dumpModifiedPharaoh(true, 0.0);
 	}
 
-	private String dumpModifiedPharaoh(boolean soft) {
+	public String outputSoft(double threshold) {
+		return dumpModifiedPharaoh(true, threshold);
+	}
+
+	private String dumpModifiedPharaoh(boolean soft, double threshold) {
 		StringBuffer sbuf = new StringBuffer();
 		if (soft) {
 			for (Pair<Integer, Integer> pair : strengths.keySet()) {
 				double strength = strengths.get(pair);
-				sbuf.append((pair.getSecond()) + "-" + (pair.getFirst()) + "-"
-						+ strength);
-				sbuf.append(" ");
+				if (strength >= threshold) {
+					sbuf.append((pair.getSecond()) + "-" + (pair.getFirst()) + "-"
+							+ strength);
+					sbuf.append(" ");
+				}
 			}
 		} else {
 			for (Pair<Integer, Integer> pair : sureAlignments) {
@@ -632,7 +637,7 @@ public class Alignment implements Serializable {
 	 * @param string The alignments to parse.
 	 */
 	public void parseAlignments(String line) {
-		parseAlignments(line, false);
+		parseAlignments(line, false, false);
 	}
 
 	/**
@@ -640,22 +645,33 @@ public class Alignment implements Serializable {
 	 * and adds those alignments.
 	 * @param line The alignments to parse.
 	 * @param reverse Whether to reverse each link
+	 * @param oneIndexed If alignments are off by 1, we need to subtract and make them 0-indexed
 	 */
-	public void parseAlignments(String line, boolean reverse) {
+	public void parseAlignments(String line, boolean reverse, boolean oneIndexed) {
 		//		String noComment = StrUtils.split(line, "#")[0];
 		String noComment = line;
 		String[] aligns = StrUtils.split(noComment);
 		for (int i = 0; i < aligns.length; i++) {
 			String[] els = StrUtils.split(aligns[i], "-");
-			int en = Integer.parseInt((reverse ? els[0] : els[1]));
+			
 			int fr = Integer.parseInt((reverse ? els[1] : els[0]));
+			int en = Integer.parseInt((reverse ? els[0] : els[1]));
+						
+			en = oneIndexed ? en-1 : en;
+			fr = oneIndexed ? fr-1 : fr;
+			
 			if (els.length == 2) {
 				addAlignment(en, fr, true);
 			} else if (els[2].equals("P")) {
 				addAlignment(en, fr, false);
-			} else {
+			} else if (els.length == 3) {
 				double strength = Double.parseDouble(els[2]);
 				setStrength(en, fr, strength);
+			} else if (els.length == 4) {
+				double strength = Double.parseDouble(els[2]+"-"+els[3]);
+				setStrength(en, fr, strength);
+			} else {
+				throw new RuntimeException("Alignment.parseAlignments Can't parse alignment "+aligns[i]+" len=="+els.length);
 			}
 		}
 	}
@@ -715,5 +731,4 @@ public class Alignment implements Serializable {
 		}
 		out.println("");
 	}
-
 }

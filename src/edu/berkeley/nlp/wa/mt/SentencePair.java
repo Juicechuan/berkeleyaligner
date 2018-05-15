@@ -1,19 +1,24 @@
 package edu.berkeley.nlp.wa.mt;
 
-import java.io.Serializable;
-import java.io.StringReader;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-
-import edu.berkeley.nlp.wa.basic.StrUtils;
+import edu.berkeley.nlp.wa.syntax.DepTree;
 import edu.berkeley.nlp.wa.syntax.Tree;
 import edu.berkeley.nlp.wa.syntax.Trees;
-import edu.berkeley.nlp.wa.util.Lists;
+import edu.berkeley.nlp.fig.basic.StrUtils;
+import edu.berkeley.nlp.util.Lists;
+import edu.berkeley.nlp.util.Logger;
+
+import java.io.Serializable;
+import java.io.StringReader;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * A holder for a pair of sentences, each a list of strings.  Sentences in
- * the test sets have integer IDs, as well, which are used to retreive the
+ * the test sets have integer IDs, as well, which are used to retrieve the
  * gold standard alignments for those sentences.
  */
 public class SentencePair implements Serializable {
@@ -25,7 +30,13 @@ public class SentencePair implements Serializable {
 	List<String> foreignWords, foreignTags;
 	Tree<String> englishTree;
 	Tree<String> foreignTree;
+	DepTree englishDepTree;
+	DepTree foreignDepTree;
+	List<Integer> englishLvl;
+	List<Integer> foreignLvl;
 	Alignment alignment;
+
+  Map<String, Alignment> keyedAligns;
 
 	public SentencePair reverse() {
 		SentencePair pair = new SentencePair(ID, sourceFile, foreignWords, englishWords);
@@ -33,8 +44,20 @@ public class SentencePair implements Serializable {
 		pair.englishTags = foreignTags;
 		pair.foreignTree = englishTree;
 		pair.englishTree = foreignTree;
+		pair.foreignDepTree = englishDepTree;
+		pair.englishDepTree = foreignDepTree;
+		pair.foreignLvl = englishLvl;
+		pair.englishLvl = foreignLvl;
 		return pair;
 	}
+
+  public Alignment getKeyedAlignment(String alignmentKey) {
+    Alignment aling = keyedAligns.get(alignmentKey);
+    if (aling == null) {
+      throw new RuntimeException("Couldn't find alignment with key " + alignmentKey);
+    }
+    return aling;
+  }
 
 	public SentencePair(int sentenceID, String sourceFile, List<String> englishWords,
 			List<String> frenchWords) {
@@ -129,6 +152,56 @@ public class SentencePair implements Serializable {
 	public void setForeignTree(Tree<String> frenchTree) {
 		this.foreignTree = frenchTree;
 	}
+	
+	public DepTree getEnglishDepTree() {
+		return englishDepTree;
+	}
+
+	public void setEnglishDepTree(DepTree englishDepTree) {
+		this.englishDepTree = englishDepTree;
+	}
+
+	public DepTree getForeignDepTree() {
+		return foreignDepTree;
+	}
+
+	public void setForeignDepTree(DepTree frenchDepTree) {
+		this.foreignDepTree = frenchDepTree;
+	}
+	
+	public List<Integer> getEnglishLvl() {
+		return englishLvl;
+	}
+	
+	public void setEnglishLvl(List<Integer> englishLvl) {
+		this.englishLvl = englishLvl;
+	}
+	
+	public List<Integer> getForeignLvl() {
+		return foreignLvl;
+	}
+	
+	public int getMaxForeignLvl() {
+		return Collections.max(foreignLvl);
+	}
+	
+	public Double getCurrentForeignLvl(int j) {
+		int jLength = J();
+		assert j < jLength && j >= -1;
+		if (foreignLvl != null){
+			if (j == -1 || j == jLength-1)  //init or last position
+				return -1.0;
+			else if (foreignLvl.get(j+1) - foreignLvl.get(j) >= 0)
+				return (double)(foreignLvl.get(j) - foreignLvl.get(j+1));
+			else
+				return (double)foreignLvl.get(j+1) - foreignLvl.get(j);
+		}
+		return null;
+	}
+	
+	public void setForeignLvl(List<Integer> foreignLvl) {
+		this.foreignLvl = foreignLvl;
+	}
 
 	public Alignment getAlignment() {
 		return alignment;
@@ -170,6 +243,18 @@ public class SentencePair implements Serializable {
 		sbuf.append("\n");
 		sbuf.append("FrTree:\t");
 		sbuf.append(foreignTree);
+		sbuf.append("\n");
+		sbuf.append("EnDepTree:\t");
+		sbuf.append(englishDepTree);
+		sbuf.append("\n");
+		sbuf.append("FrDepTree:\t");
+		sbuf.append(foreignDepTree);
+		sbuf.append("\n");
+		sbuf.append("EnLvl:\t");
+		sbuf.append(englishLvl);
+		sbuf.append("\n");
+		sbuf.append("FrLvl:\t");
+		sbuf.append(foreignLvl);
 		sbuf.append("\n");
 		sbuf.append("Alignment:\n");
 		sbuf.append(alignment);
